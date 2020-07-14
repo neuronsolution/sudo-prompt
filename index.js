@@ -8,6 +8,7 @@ var Node = {
   util: require('util')
 };
 
+//
 function Attempt(instance, end, log) {
   var platform = Node.process.platform;
   if (platform === 'darwin') return Mac(instance, end);
