@@ -8,10 +8,10 @@ var Node = {
   util: require('util')
 };
 
-function Attempt(instance, end) {
+function Attempt(instance, end, log) {
   var platform = Node.process.platform;
   if (platform === 'darwin') return Mac(instance, end);
-  if (platform === 'linux') return Linux(instance, end);
+  if (platform === 'linux') return Linux(instance, end, log);
   if (platform === 'win32') return Windows(instance, end);
   end(new Error('Platform not yet supported.'));
 }
@@ -22,12 +22,14 @@ function EscapeDoubleQuotes(string) {
 }
 
 function Exec() {
-  if (arguments.length < 1 || arguments.length > 3) {
+  if (arguments.length < 1 || arguments.length > 4) {
     throw new Error('Wrong number of arguments.');
   }
   var command = arguments[0];
   var options = {};
   var end = function() {};
+  var log = function() {};
+
   if (typeof command !== 'string') {
     throw new Error('Command should be a string.');
   }
@@ -39,7 +41,7 @@ function Exec() {
     } else {
       throw new Error('Expected options or callback.');
     }
-  } else if (arguments.length === 3) {
+  } else if (arguments.length > 2) {
     if (Node.util.isObject(arguments[1])) {
       options = arguments[1];
     } else {
@@ -50,6 +52,10 @@ function Exec() {
     } else {
       throw new Error('Expected callback to be a function.');
     }
+  }
+
+  if(arguments.length === 4){
+    log = arguments[3];
   }
   if (/^sudo/i.test(command)) {
     return end(new Error('Command should not be prefixed with "sudo".'));
@@ -122,10 +128,10 @@ function Exec() {
     uuid: undefined,
     path: undefined
   };
-  Attempt(instance, end);
+  Attempt(instance, end, log);
 }
 
-function Linux(instance, end) {
+function Linux(instance, end, log) {
   LinuxBinary(instance,
     function(error, binary) {
       if (error) return end(error);
@@ -156,7 +162,7 @@ function Linux(instance, end) {
         '"'
       );
       command = command.join(' ');
-      Node.child.exec(command, { encoding: 'utf-8', maxBuffer: MAX_BUFFER },
+      var terminal_process = Node.child.exec(command, { encoding: 'utf-8', maxBuffer: MAX_BUFFER },
         function(error, stdout, stderr) {
           // ISSUE 88:
           // We must distinguish between elevation errors and command errors.
@@ -191,6 +197,8 @@ function Linux(instance, end) {
           end(error, stdout, stderr);
         }
       );
+      terminal_process.stdout.on('data', data => log(data));
+      terminal_process.stderr.on('data', data => log(data));
     }
   );
 }
