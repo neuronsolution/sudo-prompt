@@ -8,10 +8,9 @@ var Node = {
   util: require('util')
 };
 
-//
 function Attempt(instance, end, log) {
   var platform = Node.process.platform;
-  if (platform === 'darwin') return Mac(instance, end);
+  if (platform === 'darwin') return Mac(instance, end, log);
   if (platform === 'linux') return Linux(instance, end, log);
   if (platform === 'win32') return Windows(instance, end);
   end(new Error('Platform not yet supported.'));
@@ -229,7 +228,7 @@ function LinuxBinary(instance, end) {
   test();
 }
 
-function Mac(instance, callback) {
+function Mac(instance, callback, log) {
   var temp = Node.os.tmpdir();
   if (!temp) return callback(new Error('os.tmpdir() not defined.'));
   var user = Node.process.env.USER; // Applet shell scripts require $USER.
@@ -268,7 +267,8 @@ function Mac(instance, callback) {
                         function(error, stdout, stderr) {
                           if (error) return end(error, stdout, stderr);
                           MacResult(instance, end);
-                        }
+                        },
+                        log
                       );
                     }
                   );
@@ -342,7 +342,7 @@ function MacIcon(instance, end) {
   );
 }
 
-function MacOpen(instance, end) {
+function MacOpen(instance, end, log) {
   // We must run the binary directly so that the cwd will apply.
   var binary = Node.path.join(instance.path, 'Contents', 'MacOS', 'applet');
   // We must set the cwd so that the AppleScript can find the shell scripts.
@@ -352,7 +352,9 @@ function MacOpen(instance, end) {
   };
   // We use the relative path rather than the absolute path. The instance.path
   // may contain spaces which the cwd can handle, but which exec() cannot.
-  Node.child.exec('./' + Node.path.basename(binary), options, end);
+  const terminal_process = Node.child.exec('./' + Node.path.basename(binary), options, end);
+  terminal_process.stdout.on('data', data => log(data));
+  terminal_process.stderr.on('data', data => log(data));
 }
 
 function MacPropertyList(instance, end) {
